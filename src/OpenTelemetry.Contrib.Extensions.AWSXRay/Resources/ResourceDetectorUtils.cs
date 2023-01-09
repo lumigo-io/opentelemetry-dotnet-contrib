@@ -29,13 +29,16 @@ namespace OpenTelemetry.Contrib.Extensions.AWSXRay.Resources;
 /// </summary>
 public class ResourceDetectorUtils
 {
-    internal static async Task<string> SendOutRequest(string url, string method, KeyValuePair<string, string> header, HttpClientHandler handler = null)
+    internal static async Task<string> SendOutRequest(string url, string method, KeyValuePair<string, string>? header, HttpClientHandler handler = null)
     {
         using (var httpRequestMessage = new HttpRequestMessage())
         {
             httpRequestMessage.RequestUri = new Uri(url);
             httpRequestMessage.Method = new HttpMethod(method);
-            httpRequestMessage.Headers.Add(header.Key, header.Value);
+            if (header.HasValue)
+            {
+                httpRequestMessage.Headers.Add(header.Value.Key, header.Value.Value);
+            }
 
             var httpClient = handler == null ? new HttpClient() : new HttpClient(handler);
             using (var response = await httpClient.SendAsync(httpRequestMessage))

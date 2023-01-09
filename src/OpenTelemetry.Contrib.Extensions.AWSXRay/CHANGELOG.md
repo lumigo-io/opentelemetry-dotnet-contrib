@@ -5,6 +5,8 @@
 * Enhancement - AWSXRayIdGenerator - Generate X-Ray IDs with global Random
   instance instead of recreating with ThreadLocal
   ([#380](https://github.com/open-telemetry/opentelemetry-dotnet-contrib/pull/380))
+* Enhancement - AWSECSResourceDetector - Implement `aws.{ecs.*,log.*}` resource
+  attributes with data from ECS Metadata endpoint v4
 
 ## 1.2.0
 
