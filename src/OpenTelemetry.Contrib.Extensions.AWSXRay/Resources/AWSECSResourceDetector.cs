@@ -16,6 +16,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Net.Http;
+using System.Text.RegularExpressions;
+
+using Newtonsoft.Json.Linq;
 
 namespace OpenTelemetry.Contrib.Extensions.AWSXRay.Resources;
 
@@ -52,6 +56,15 @@ public class AWSECSResourceDetector : IResourceDetector
             AWSXRayEventSource.Log.ResourceAttributesExtractException(nameof(AWSECSResourceDetector), ex);
         }
 
+        try
+        {
+            resourceAttributes.AddRange(this.ExtractMetadataV4ResourceAttributes());
+        }
+        catch (Exception ex)
+        {
+            AWSXRayEventSource.Log.ResourceAttributesExtractException(nameof(AWSECSResourceDetector), ex);
+        }
+
         return resourceAttributes;
     }
 
@@ -63,6 +76,78 @@ public class AWSECSResourceDetector : IResourceDetector
             new KeyValuePair<string, object>(AWSSemanticConventions.AttributeCloudPlatform, "aws_ecs"),
             new KeyValuePair<string, object>(AWSSemanticConventions.AttributeContainerID, containerId),
         };
+
+        return resourceAttributes;
+    }
+
+    internal List<KeyValuePair<string, object>> ExtractMetadataV4ResourceAttributes()
+    {
+        var metadataV4Url = Environment.GetEnvironmentVariable(AWSECSMetadataURLV4Key);
+        if (Environment.GetEnvironmentVariable(metadataV4Url) == null)
+        {
+            return new List<KeyValuePair<string, object>>();
+        }
+
+        var httpClientHandler = new HttpClientHandler();
+        var metadaV4ContainerResponse = ResourceDetectorUtils.SendOutRequest(metadataV4Url, "GET", null, httpClientHandler).Result;
+        var metadaV4TaskResponse = ResourceDetectorUtils.SendOutRequest($"{metadataV4Url}/task", "GET", null, httpClientHandler).Result;
+
+        var containerResponse = JObject.Parse(metadaV4ContainerResponse);
+        var taskResponse = JObject.Parse(metadaV4TaskResponse);
+
+        var containerArn = (string)containerResponse["ContainerARN"];
+        var clusterArn = (string)taskResponse["Cluster"];
+
+        if (!clusterArn.StartsWith("arn:"))
+        {
+            var baseArn = containerArn.Substring(containerArn.LastIndexOf(":"));
+            clusterArn = $"{baseArn}:cluster/{clusterArn}";
+        }
+
+        var launchType = (string)taskResponse["LaunchType"] switch {
+            string type when "ec2".Equals(type.ToLower()) => AWSSemanticConventions.ValueEcsLaunchTypeEc2,
+            string type when "fargate".Equals(type.ToLower()) => AWSSemanticConventions.ValueEcsLaunchTypeFargate,
+            _ => null,
+        };
+
+        if (launchType == null)
+        {
+            throw new ArgumentOutOfRangeException($"Unrecognized launch type '{taskResponse["LaunchType"]}'");
+        }
+
+        var resourceAttributes = new List<KeyValuePair<string, object>>()
+        {
+            new KeyValuePair<string, object>(AWSSemanticConventions.AttributeEcsContainerArn, containerArn),
+            new KeyValuePair<string, object>(AWSSemanticConventions.AttributeEcsClusterArn, clusterArn),
+            new KeyValuePair<string, object>(AWSSemanticConventions.AttributeEcsLaunchtype, launchType),
+            new KeyValuePair<string, object>(AWSSemanticConventions.AttributeEcsTaskArn, (string)taskResponse["TaskARN"]),
+            new KeyValuePair<string, object>(AWSSemanticConventions.AttributeEcsTaskFamily, (string)taskResponse["Family"]),
+            new KeyValuePair<string, object>(AWSSemanticConventions.AttributeEcsTaskRevision, (string)taskResponse["Revision"]),
+        };
+
+        if ("awslogs".Equals(containerResponse["LogDriver"]))
+        {
+            JObject logOptions = (JObject)containerResponse["LogOptions"];
+
+            var regex = new Regex(@"arn:aws:ecs:([^:]+):([^:]+):.*");
+            var match = regex.Match(containerArn);
+
+            if (!match.Success)
+            {
+                throw new ArgumentOutOfRangeException($"Cannot parse region and account from the container ARN '{containerArn}'");
+            }
+
+            var logsRegion = match.Groups[1];
+            var logsAccount = match.Groups[2];
+
+            var logGroupName = (string)logOptions["AwsLogsGroup"];
+            var logStreamName = (string)logOptions["AwsLogsStream"];
+
+            resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogGroupNames, logGroupName));
+            resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogGroupArns, $"arn:aws:logs:{logsRegion}:{logsAccount}:log-group:{logGroupName}:*"));
+            resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogStreamNames, logStreamName));
+            resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogStreamArns, $"arn:aws:logs:{logsRegion}:{logsAccount}:log-group:{logGroupName}:log-stream:{logStreamName}"));
+        }
 
         return resourceAttributes;
     }
