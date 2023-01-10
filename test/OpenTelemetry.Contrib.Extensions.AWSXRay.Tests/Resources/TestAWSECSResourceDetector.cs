@@ -17,6 +17,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http;
 using OpenTelemetry.Contrib.Extensions.AWSXRay.Resources;
 using Xunit;
 
@@ -63,12 +67,66 @@ public class TestAWSECSResourceDetector
     public void TestIsECSProcess()
     {
         Environment.SetEnvironmentVariable(AWSECSMetadataURLKey, "TestECSURIKey");
-        Environment.SetEnvironmentVariable(AWSECSMetadataURLV4Key, "TestECSURIV4Key");
 
         var ecsResourceDetector = new AWSECSResourceDetector();
         var isEcsProcess = ecsResourceDetector.IsECSProcess();
 
         Assert.True(isEcsProcess);
+    }
+
+    [Fact]
+    public async void TestIsECSProcessV4Fargate()
+    {
+        CancellationTokenSource source = new CancellationTokenSource();
+        CancellationToken token = source.Token;
+
+        var port = 8912; // TODO Change to random open
+
+        try
+        {
+            using var server = new WebHostBuilder()
+                .UseKestrel(/*x => x.ListenLocalhost(8080)*/).UseStartup<Startup>()
+                .UseUrls($"http://localhost:{port}")
+                .Configure(app =>
+            {
+                app.Run(async context =>
+                {
+                    if (context.Request.Method == HttpMethods.Get && context.Request.Path == "/")
+                    {
+                        string content = await ReadTextAsync($"{System.IO.Path.GetDirectoryName(Application.ExecutablePath)}/Resources/ecs_metadata/metadatav4-response-container-fargate.json");
+                        await context.Response.WriteAsJsonAsync(content);
+                    }
+                    else if (context.Request.Method == HttpMethods.Post && context.Request.Path == "/task")
+                    {
+                        string content = await ReadTextAsync($"{System.IO.Path.GetDirectoryName(Application.ExecutablePath)}/Resources/ecs_metadata/metadatav4-response-task-fargate.json");
+                        await context.Response.WriteAsJsonAsync(storage);
+                    }
+                    else
+                    {
+                        context.Response.StatusCode = StatusCodes.Status404NotFound;
+                        await context.Response.WriteAsync("Not found");
+                    }
+                });
+            }).Build();
+            await server.StartAsync();
+
+            try
+            {
+                Environment.SetEnvironmentVariable(AWSECSMetadataURLV4Key, $"http://localhost:{port}");
+
+                var ecsResourceDetector = new AWSECSResourceDetector();
+
+                Assert.True(ecsResourceDetector.IsECSProcess());
+            }
+            finally
+            {
+                await server.StopAsync(token);
+            }
+        }
+        finally
+        {
+            source.Dispose();
+        }
     }
 
     [Fact]
