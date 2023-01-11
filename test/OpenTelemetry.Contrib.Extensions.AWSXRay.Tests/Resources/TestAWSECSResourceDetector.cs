@@ -25,6 +25,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+
+using OpenTelemetry.Contrib.Extensions.AWSXRay.Resources;
 using Xunit;
 
 namespace OpenTelemetry.Contrib.Extensions.AWSXRay.Tests.Resources;
@@ -71,8 +73,8 @@ public class TestAWSECSResourceDetector
         await using (var metadataEndpoint = new MockEcsMetadataEndpoint("ecs_metadata/metadatav4-response-container-ec2.json", "ecs_metadata/metadatav4-response-task-ec2.json"))
         {
             Environment.SetEnvironmentVariable(AWSECSMetadataURLV4Key, metadataEndpoint.Address.ToString());
-
-            var resourceAttributes = new AWSECSResourceDetector().Detect().ToDictionary(x => x.Key, x => x.Value);
+            var tmp = new AWSECSResourceDetector().Detect();
+            var resourceAttributes = tmp.ToDictionary(x => x.Key, x => x.Value);
 
             Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudProvider], "aws");
             Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudPlatform], "aws_ecs");

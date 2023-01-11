@@ -68,15 +68,6 @@ public class AWSECSResourceDetector : IResourceDetector
             AWSXRayEventSource.Log.ResourceAttributesExtractException(nameof(AWSECSResourceDetector), ex);
         }
 
-        try
-        {
-            resourceAttributes.AddRange(this.ExtractMetadataV4ResourceAttributes());
-        }
-        catch (Exception ex)
-        {
-            AWSXRayEventSource.Log.ResourceAttributesExtractException(nameof(AWSECSResourceDetector), ex);
-        }
-
         return resourceAttributes;
     }
 
