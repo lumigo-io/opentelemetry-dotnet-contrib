@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFrameworks>net7.0;net6.0</TargetFrameworks>
-    <TargetFrameworks Condition="$(OS) == 'Windows_NT'">$(TargetFrameworks);net462</TargetFrameworks>
+    <TargetFrameworks Condition="$(OS) == 'Windows_NT'">$(TargetFrameworks);$(NetFrameworkMinimumSupportedVersion)</TargetFrameworks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,9 +20,8 @@
     <ProjectReference Include="$(RepoRoot)\src\OpenTelemetry.Contrib.Extensions.AWSXRay\OpenTelemetry.Contrib.Extensions.AWSXRay.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+  <ItemGroup Condition="'$(TargetFramework)' != '$(NetFrameworkMinimumSupportedVersion)'">
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <Reference Include="System.Net.Http" />
     <None Update="Resources\ecs_metadata\metadatav4-response-container-ec2.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -37,24 +36,7 @@
     </None>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net7.0'">
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <Reference Include="System.Net.Http" />
-    <None Update="Resources\ecs_metadata\metadatav4-response-container-ec2.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Resources\ecs_metadata\metadatav4-response-task-ec2.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Resources\ecs_metadata\metadatav4-response-container-fargate.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Resources\ecs_metadata\metadatav4-response-task-fargate.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
+  <ItemGroup Condition="'$(TargetFramework)' == '$(NetFrameworkMinimumSupportedVersion)'">
     <Compile Remove="Resources\TestAWSECSResourceDetector.cs" />
     <Compile Remove="Resources\TestAWSEKSResourceDetector.cs" />
     <Compile Remove="Resources\TestAWSLambdaResourceDetector.cs" />
