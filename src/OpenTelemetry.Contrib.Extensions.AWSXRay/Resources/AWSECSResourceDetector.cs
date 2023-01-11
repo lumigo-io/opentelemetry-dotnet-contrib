@@ -114,7 +114,8 @@ public class AWSECSResourceDetector : IResourceDetector
             clusterArn = $"{baseArn}:cluster/{clusterArn}";
         }
 
-        var launchType = (string)taskResponse["LaunchType"] switch {
+        var launchType = (string)taskResponse["LaunchType"] switch
+        {
             string type when "ec2".Equals(type.ToLower()) => AWSSemanticConventions.ValueEcsLaunchTypeEc2,
             string type when "fargate".Equals(type.ToLower()) => AWSSemanticConventions.ValueEcsLaunchTypeFargate,
             _ => null,
