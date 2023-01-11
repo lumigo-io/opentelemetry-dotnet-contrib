@@ -50,7 +50,7 @@ public class TestAWSECSResourceDetector : IDisposable
     [Fact]
     public void TestNotOnEcs()
     {
-        Assert.Empty(new AWSECSResourceDetector().Detect().Attributes);
+        Assert.Null(new AWSECSResourceDetector().Detect());
     }
 
     [Fact]
