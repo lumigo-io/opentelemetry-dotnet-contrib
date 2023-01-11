@@ -15,13 +15,16 @@
 // </copyright>
 
 using System;
-using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
-using OpenTelemetry.Contrib.Extensions.AWSXRay.Resources;
 using Xunit;
 
 namespace OpenTelemetry.Contrib.Extensions.AWSXRay.Tests.Resources;
@@ -33,73 +36,116 @@ public class TestAWSECSResourceDetector
     private const string AWSECSMetadataURLV4Key = "ECS_CONTAINER_METADATA_URI_V4";
 
     [Fact]
-    public void TestDetect()
+    public void TestNotOnEcs()
     {
-        IEnumerable<KeyValuePair<string, object>> resourceAttributes;
-        var ecsResourceDetector = new AWSECSResourceDetector();
-        resourceAttributes = ecsResourceDetector.Detect();
-        Assert.Null(resourceAttributes); // will be null as it's not in ecs environment
-    }
+        Environment.SetEnvironmentVariable(AWSECSMetadataURLKey, null);
+        Environment.SetEnvironmentVariable(AWSECSMetadataURLV4Key, null);
 
-    [Fact]
-    public void TestExtractResourceAttributes()
-    {
-        var ecsResourceDetector = new AWSECSResourceDetector();
-        var containerId = "Test container id";
-
-        var resourceAttributes = ecsResourceDetector.ExtractResourceAttributes(containerId).ToDictionary(x => x.Key, x => x.Value);
-
-        Assert.Equal("aws", resourceAttributes[AWSSemanticConventions.AttributeCloudProvider]);
-        Assert.Equal("aws_ecs", resourceAttributes[AWSSemanticConventions.AttributeCloudPlatform]);
-        Assert.Equal("Test container id", resourceAttributes[AWSSemanticConventions.AttributeContainerID]);
+        Assert.Empty(new AWSECSResourceDetector().Detect());
     }
 
     [Fact]
     public void TestGetECSContainerId()
     {
-        var ecsResourceDetector = new AWSECSResourceDetector();
-        var ecsContainerId = ecsResourceDetector.GetECSContainerId(AWSECSMetadataFilePath);
-
-        Assert.Equal("a4d00c9dd675d67f866c786181419e1b44832d4696780152e61afd44a3e02856", ecsContainerId);
+        Assert.Equal("a4d00c9dd675d67f866c786181419e1b44832d4696780152e61afd44a3e02856", new AWSECSResourceDetector().GetECSContainerId(AWSECSMetadataFilePath));
     }
 
     [Fact]
-    public void TestIsECSProcess()
+    public void TestEcsMetadataV3()
     {
         Environment.SetEnvironmentVariable(AWSECSMetadataURLKey, "TestECSURIKey");
+        Environment.SetEnvironmentVariable(AWSECSMetadataURLV4Key, null);
 
-        var ecsResourceDetector = new AWSECSResourceDetector();
-        var isEcsProcess = ecsResourceDetector.IsECSProcess();
+        var resourceAttributes = new AWSECSResourceDetector().Detect().ToDictionary(x => x.Key, x => x.Value);
 
-        Assert.True(isEcsProcess);
+        Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudProvider], "aws");
+        Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudPlatform], "aws_ecs");
     }
 
     [Fact]
-    public async void TestIsECSProcessV4Fargate()
+    public async void TestEcsMetadataV4Ec2()
     {
-        CancellationTokenSource source = new CancellationTokenSource();
-        CancellationToken token = source.Token;
+        var source = new CancellationTokenSource();
+        var token = source.Token;
 
-        var port = 8912; // TODO Change to random open
-
-        try
+        await using (var metadataEndpoint = new MockEcsMetadataEndpoint("ecs_metadata/metadatav4-response-container-ec2.json", "ecs_metadata/metadatav4-response-task-ec2.json"))
         {
-            using var server = new WebHostBuilder()
-                .UseKestrel(/*x => x.ListenLocalhost(8080)*/).UseStartup<Startup>()
-                .UseUrls($"http://localhost:{port}")
+            Environment.SetEnvironmentVariable(AWSECSMetadataURLV4Key, metadataEndpoint.Address.ToString());
+
+            var resourceAttributes = new AWSECSResourceDetector().Detect().ToDictionary(x => x.Key, x => x.Value);
+
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudProvider], "aws");
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudPlatform], "aws_ecs");
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeEcsContainerArn], "arn:aws:ecs:us-west-2:111122223333:container/0206b271-b33f-47ab-86c6-a0ba208a70a9");
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeEcsLaunchtype], "ec2");
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeEcsTaskArn], "arn:aws:ecs:us-west-2:111122223333:task/default/158d1c8083dd49d6b527399fd6414f5c");
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeEcsTaskFamily], "curltest");
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeEcsTaskRevision], "26");
+            Assert.NotStrictEqual(resourceAttributes[AWSSemanticConventions.AttributeLogGroupNames], new string[] { "/ecs/metadata" });
+            Assert.NotStrictEqual(resourceAttributes[AWSSemanticConventions.AttributeLogGroupArns], new string[] { "arn:aws:logs:us-west-2:111122223333:log-group:/ecs/metadata" });
+            Assert.NotStrictEqual(resourceAttributes[AWSSemanticConventions.AttributeLogStreamNames], new string[] { "ecs/curl/8f03e41243824aea923aca126495f665" });
+            Assert.NotStrictEqual(resourceAttributes[AWSSemanticConventions.AttributeLogStreamArns], new string[] { "arn:aws:logs:us-west-2:111122223333:log-group:/ecs/metadata:log-stream:ecs/curl/8f03e41243824aea923aca126495f665" });
+        }
+    }
+
+    [Fact]
+    public async void TestEcsMetadataV4Fargate()
+    {
+        var source = new CancellationTokenSource();
+        var token = source.Token;
+
+        await using (var metadataEndpoint = new MockEcsMetadataEndpoint("ecs_metadata/metadatav4-response-container-fargate.json", "ecs_metadata/metadatav4-response-task-fargate.json"))
+        {
+            Environment.SetEnvironmentVariable(AWSECSMetadataURLV4Key, metadataEndpoint.Address.ToString());
+
+            var resourceAttributes = new AWSECSResourceDetector().Detect().ToDictionary(x => x.Key, x => x.Value);
+
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudProvider], "aws");
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudPlatform], "aws_ecs");
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeEcsContainerArn], "arn:aws:ecs:us-west-2:111122223333:container/05966557-f16c-49cb-9352-24b3a0dcd0e1");
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeEcsLaunchtype], "fargate");
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeEcsTaskArn], "arn:aws:ecs:us-west-2:111122223333:task/default/e9028f8d5d8e4f258373e7b93ce9a3c3");
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeEcsTaskFamily], "curltest");
+            Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeEcsTaskRevision], "3");
+            Assert.NotStrictEqual(resourceAttributes[AWSSemanticConventions.AttributeLogGroupNames], new string[] { "/ecs/containerlogs" });
+            Assert.NotStrictEqual(resourceAttributes[AWSSemanticConventions.AttributeLogGroupArns], new string[] { "arn:aws:logs:us-west-2:111122223333:log-group:/ecs/containerlogs" });
+            Assert.NotStrictEqual(resourceAttributes[AWSSemanticConventions.AttributeLogStreamNames], new string[] { "ecs/curl/cd189a933e5849daa93386466019ab50" });
+            Assert.NotStrictEqual(resourceAttributes[AWSSemanticConventions.AttributeLogStreamArns], new string[] { "arn:aws:logs:us-west-2:111122223333:log-group:/ecs/containerlogs:log-stream:ecs/curl/cd189a933e5849daa93386466019ab50" });
+        }
+    }
+
+    internal class MockEcsMetadataEndpoint : IAsyncDisposable
+    {
+        public readonly Uri Address;
+        private readonly string containerJsonPath;
+        private readonly string taskJsonPath;
+        private readonly IWebHost server;
+
+        public MockEcsMetadataEndpoint(string containerJsonPath, string taskJsonPath)
+        {
+            this.containerJsonPath = containerJsonPath;
+            this.taskJsonPath = taskJsonPath;
+
+            this.server = new WebHostBuilder()
+                .UseKestrel()
+                .UseUrls("http://127.0.0.1:0") // Use random localhost port
                 .Configure(app =>
             {
                 app.Run(async context =>
                 {
                     if (context.Request.Method == HttpMethods.Get && context.Request.Path == "/")
                     {
-                        string content = await ReadTextAsync($"{System.IO.Path.GetDirectoryName(Application.ExecutablePath)}/Resources/ecs_metadata/metadatav4-response-container-fargate.json");
-                        await context.Response.WriteAsJsonAsync(content);
+                        var content = await File.ReadAllTextAsync($"{Environment.CurrentDirectory}/Resources/{containerJsonPath}");
+                        var data = Encoding.UTF8.GetBytes(content);
+                        context.Response.ContentType = "application/json";
+                        await context.Response.Body.WriteAsync(data, 0, data.Length);
                     }
-                    else if (context.Request.Method == HttpMethods.Post && context.Request.Path == "/task")
+                    else if (context.Request.Method == HttpMethods.Get && context.Request.Path == "/task")
                     {
-                        string content = await ReadTextAsync($"{System.IO.Path.GetDirectoryName(Application.ExecutablePath)}/Resources/ecs_metadata/metadatav4-response-task-fargate.json");
-                        await context.Response.WriteAsJsonAsync(storage);
+                        var content = await File.ReadAllTextAsync($"{Environment.CurrentDirectory}/Resources/{taskJsonPath}");
+                        var data = Encoding.UTF8.GetBytes(content);
+                        context.Response.ContentType = "application/json";
+                        await context.Response.Body.WriteAsync(data, 0, data.Length);
                     }
                     else
                     {
@@ -108,33 +154,19 @@ public class TestAWSECSResourceDetector
                     }
                 });
             }).Build();
-            await server.StartAsync();
+            this.server.Start();
 
-            try
-            {
-                Environment.SetEnvironmentVariable(AWSECSMetadataURLV4Key, $"http://localhost:{port}");
-
-                var ecsResourceDetector = new AWSECSResourceDetector();
-
-                Assert.True(ecsResourceDetector.IsECSProcess());
-            }
-            finally
-            {
-                await server.StopAsync(token);
-            }
+            this.Address = new Uri(this.server.ServerFeatures.Get<IServerAddressesFeature>().Addresses.First());
         }
-        finally
+
+        public async ValueTask DisposeAsync()
         {
-            source.Dispose();
+            await this.DisposeAsyncCore();
         }
-    }
 
-    [Fact]
-    public void TestIsNotECSProcess()
-    {
-        var ecsResourceDetector = new AWSECSResourceDetector();
-        var isEcsProcess = ecsResourceDetector.IsECSProcess();
-
-        Assert.False(isEcsProcess);
+        protected virtual async ValueTask DisposeAsyncCore()
+        {
+            await this.server.StopAsync();
+        }
     }
 }

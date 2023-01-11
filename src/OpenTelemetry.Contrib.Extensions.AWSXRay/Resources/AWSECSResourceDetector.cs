@@ -38,18 +38,30 @@ public class AWSECSResourceDetector : IResourceDetector
     /// <returns>List of key-value pairs of resource attributes.</returns>
     public IEnumerable<KeyValuePair<string, object>> Detect()
     {
-        List<KeyValuePair<string, object>> resourceAttributes = null;
-
         if (!this.IsECSProcess())
         {
-            return resourceAttributes;
+            return new List<KeyValuePair<string, object>>();
         }
+
+        var resourceAttributes = new List<KeyValuePair<string, object>>()
+        {
+            new KeyValuePair<string, object>(AWSSemanticConventions.AttributeCloudProvider, "aws"),
+            new KeyValuePair<string, object>(AWSSemanticConventions.AttributeCloudPlatform, "aws_ecs"),
+        };
 
         try
         {
             var containerId = this.GetECSContainerId(AWSECSMetadataPath);
+            resourceAttributes.AddRange(this.ExtractResourceAttributes(containerId));
+        }
+        catch (Exception ex)
+        {
+            AWSXRayEventSource.Log.ResourceAttributesExtractException(nameof(AWSECSResourceDetector), ex);
+        }
 
-            resourceAttributes = this.ExtractResourceAttributes(containerId);
+        try
+        {
+            resourceAttributes.AddRange(this.ExtractMetadataV4ResourceAttributes());
         }
         catch (Exception ex)
         {
@@ -72,8 +84,6 @@ public class AWSECSResourceDetector : IResourceDetector
     {
         var resourceAttributes = new List<KeyValuePair<string, object>>()
         {
-            new KeyValuePair<string, object>(AWSSemanticConventions.AttributeCloudProvider, "aws"),
-            new KeyValuePair<string, object>(AWSSemanticConventions.AttributeCloudPlatform, "aws_ecs"),
             new KeyValuePair<string, object>(AWSSemanticConventions.AttributeContainerID, containerId),
         };
 
@@ -83,20 +93,20 @@ public class AWSECSResourceDetector : IResourceDetector
     internal List<KeyValuePair<string, object>> ExtractMetadataV4ResourceAttributes()
     {
         var metadataV4Url = Environment.GetEnvironmentVariable(AWSECSMetadataURLV4Key);
-        if (Environment.GetEnvironmentVariable(metadataV4Url) == null)
+        if (metadataV4Url == null)
         {
             return new List<KeyValuePair<string, object>>();
         }
 
         var httpClientHandler = new HttpClientHandler();
-        var metadaV4ContainerResponse = ResourceDetectorUtils.SendOutRequest(metadataV4Url, "GET", null, httpClientHandler).Result;
-        var metadaV4TaskResponse = ResourceDetectorUtils.SendOutRequest($"{metadataV4Url}/task", "GET", null, httpClientHandler).Result;
+        var metadataV4ContainerResponse = ResourceDetectorUtils.SendOutRequest(metadataV4Url, "GET", null, httpClientHandler).Result;
+        var metadataV4TaskResponse = ResourceDetectorUtils.SendOutRequest($"{metadataV4Url.TrimEnd('/')}/task", "GET", null, httpClientHandler).Result;
 
-        var containerResponse = JObject.Parse(metadaV4ContainerResponse);
-        var taskResponse = JObject.Parse(metadaV4TaskResponse);
+        var containerResponse = JObject.Parse(metadataV4ContainerResponse);
+        var taskResponse = JObject.Parse(metadataV4TaskResponse);
 
-        var containerArn = (string)containerResponse["ContainerARN"];
-        var clusterArn = (string)taskResponse["Cluster"];
+        var containerArn = (string)containerResponse["ContainerARN"];  // TODO Throw if null
+        var clusterArn = (string)taskResponse["Cluster"];  // TODO Throw if null
 
         if (!clusterArn.StartsWith("arn:"))
         {
@@ -125,7 +135,7 @@ public class AWSECSResourceDetector : IResourceDetector
             new KeyValuePair<string, object>(AWSSemanticConventions.AttributeEcsTaskRevision, (string)taskResponse["Revision"]),
         };
 
-        if ("awslogs".Equals(containerResponse["LogDriver"]))
+        if ("awslogs".Equals(containerResponse["LogDriver"]?.ToString()))
         {
             JObject logOptions = (JObject)containerResponse["LogOptions"];
 
@@ -140,13 +150,13 @@ public class AWSECSResourceDetector : IResourceDetector
             var logsRegion = match.Groups[1];
             var logsAccount = match.Groups[2];
 
-            var logGroupName = (string)logOptions["AwsLogsGroup"];
-            var logStreamName = (string)logOptions["AwsLogsStream"];
+            var logGroupName = (string)logOptions["awslogs-group"];  // TODO Throw if null
+            var logStreamName = (string)logOptions["awslogs-stream"];  // TODO Throw if null
 
-            resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogGroupNames, logGroupName));
-            resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogGroupArns, $"arn:aws:logs:{logsRegion}:{logsAccount}:log-group:{logGroupName}:*"));
-            resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogStreamNames, logStreamName));
-            resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogStreamArns, $"arn:aws:logs:{logsRegion}:{logsAccount}:log-group:{logGroupName}:log-stream:{logStreamName}"));
+            resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogGroupNames, new string[] { logGroupName }));
+            resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogGroupArns, new string[] { $"arn:aws:logs:{logsRegion}:{logsAccount}:log-group:{logGroupName}:*" }));
+            resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogStreamNames, new string[] { logStreamName }));
+            resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogStreamArns, new string[] { $"arn:aws:logs:{logsRegion}:{logsAccount}:log-group:{logGroupName}:log-stream:{logStreamName}" }));
         }
 
         return resourceAttributes;
