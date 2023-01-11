@@ -7,6 +7,7 @@
   ([#380](https://github.com/open-telemetry/opentelemetry-dotnet-contrib/pull/380))
 * Enhancement - AWSECSResourceDetector - Implement `aws.{ecs.*,log.*}` resource
   attributes with data from ECS Metadata endpoint v4
+  ([#875](https://github.com/open-telemetry/opentelemetry-dotnet-contrib/pull/875))
 
 ## 1.2.0
 
