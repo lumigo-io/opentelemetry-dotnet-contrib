@@ -18,8 +18,10 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
+
 using OpenTelemetry.Contrib.Extensions.AWSXRay.Resources.Http;
 using OpenTelemetry.Contrib.Extensions.AWSXRay.Resources.Models;
+using OpenTelemetry.Resources;
 
 namespace OpenTelemetry.Contrib.Extensions.AWSXRay.Resources;
 
@@ -37,8 +39,8 @@ public class AWSEKSResourceDetector : IResourceDetector
     /// <summary>
     /// Detector the required and optional resource attributes from AWS EKS.
     /// </summary>
-    /// <returns>List of key-value pairs of resource attributes.</returns>
-    public IEnumerable<KeyValuePair<string, object>> Detect()
+    /// <returns>Resource.</returns>
+    public Resource Detect()
     {
         var credentials = this.GetEKSCredentials(AWSEKSCredentialPath);
         var httpClientHandler = Handler.Create(AWSEKSCertificatePath);
@@ -48,9 +50,9 @@ public class AWSEKSResourceDetector : IResourceDetector
             return null;
         }
 
-        return this.ExtractResourceAttributes(
+        return new Resource(this.ExtractResourceAttributes(
             this.GetEKSClusterName(credentials, httpClientHandler),
-            this.GetEKSContainerId(AWSEKSMetadataFilePath));
+            this.GetEKSContainerId(AWSEKSMetadataFilePath)));
     }
 
     internal List<KeyValuePair<string, object>> ExtractResourceAttributes(string clusterName, string containerId)

@@ -14,7 +14,6 @@
 // limitations under the License.
 // </copyright>
 
-using System.Collections.Generic;
 using System.Linq;
 using OpenTelemetry.Contrib.Extensions.AWSXRay.Resources;
 using Xunit;
@@ -26,10 +25,7 @@ public class TestAWSEC2ResourceDetector
     [Fact]
     public void TestDetect()
     {
-        IEnumerable<KeyValuePair<string, object>> resourceAttributes;
-        var ec2ResourceDetector = new AWSEC2ResourceDetector();
-        resourceAttributes = ec2ResourceDetector.Detect();
-        Assert.Null(resourceAttributes); // will be null as it's not in ec2 environment
+        Assert.Null(new AWSEC2ResourceDetector().Detect()); // will be null as it's not in ec2 environment
     }
 
     [Fact]

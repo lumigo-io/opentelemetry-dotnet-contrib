@@ -14,7 +14,6 @@
 // limitations under the License.
 // </copyright>
 
-using System.Collections.Generic;
 using System.Linq;
 using OpenTelemetry.Contrib.Extensions.AWSXRay.Resources;
 using Xunit;
@@ -28,10 +27,7 @@ public class TestAWSEBSResourceDetector
     [Fact]
     public void TestDetect()
     {
-        IEnumerable<KeyValuePair<string, object>> resourceAttributes;
-        var ebsResourceDetector = new AWSEBSResourceDetector();
-        resourceAttributes = ebsResourceDetector.Detect();
-        Assert.Null(resourceAttributes); // will be null as it's not in ebs environment
+        Assert.Null(new AWSEBSResourceDetector().Detect()); // will be null as it's not in ebs environment
     }
 
     [Fact]

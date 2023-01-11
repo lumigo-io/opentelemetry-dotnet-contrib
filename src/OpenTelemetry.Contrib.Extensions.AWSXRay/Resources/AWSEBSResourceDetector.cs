@@ -19,7 +19,9 @@ using System.Collections.Generic;
 #if NETSTANDARD
 using System.Runtime.InteropServices;
 #endif
+
 using OpenTelemetry.Contrib.Extensions.AWSXRay.Resources.Models;
+using OpenTelemetry.Resources;
 
 namespace OpenTelemetry.Contrib.Extensions.AWSXRay.Resources;
 
@@ -34,8 +36,8 @@ public class AWSEBSResourceDetector : IResourceDetector
     /// <summary>
     /// Detector the required and optional resource attributes from AWS ElasticBeanstalk.
     /// </summary>
-    /// <returns>List of key-value pairs of resource attributes.</returns>
-    public IEnumerable<KeyValuePair<string, object>> Detect()
+    /// <returns>Resource.</returns>
+    public Resource Detect()
     {
         List<KeyValuePair<string, object>> resourceAttributes = null;
 
@@ -64,7 +66,7 @@ public class AWSEBSResourceDetector : IResourceDetector
             AWSXRayEventSource.Log.ResourceAttributesExtractException(nameof(AWSEBSResourceDetector), ex);
         }
 
-        return resourceAttributes;
+        return resourceAttributes != null ? new Resource(resourceAttributes) : null;
     }
 
     internal List<KeyValuePair<string, object>> ExtractResourceAttributes(AWSEBSMetadataModel metadata)

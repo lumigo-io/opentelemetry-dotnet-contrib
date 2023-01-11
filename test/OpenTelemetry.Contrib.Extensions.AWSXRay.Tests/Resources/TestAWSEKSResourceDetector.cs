@@ -14,7 +14,6 @@
 // limitations under the License.
 // </copyright>
 
-using System.Collections.Generic;
 using System.Linq;
 using OpenTelemetry.Contrib.Extensions.AWSXRay.Resources;
 using Xunit;
@@ -29,10 +28,7 @@ public class TestAWSEKSResourceDetector
     [Fact]
     public void TestDetect()
     {
-        IEnumerable<KeyValuePair<string, object>> resourceAttributes;
-        var eksResourceDetector = new AWSEKSResourceDetector();
-        resourceAttributes = eksResourceDetector.Detect();
-        Assert.Null(resourceAttributes); // will be null as it's not in eks environment
+        Assert.Null(new AWSEKSResourceDetector().Detect()); // will be null as it's not in eks environment
     }
 
     [Fact]

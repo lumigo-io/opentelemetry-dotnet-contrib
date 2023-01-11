@@ -17,6 +17,8 @@
 using System;
 using System.Collections.Generic;
 
+using OpenTelemetry.Resources;
+
 namespace OpenTelemetry.Contrib.Extensions.AWSXRay.Resources;
 
 /// <summary>
@@ -31,8 +33,8 @@ public class AWSLambdaResourceDetector : IResourceDetector
     /// <summary>
     /// Detector the required and optional resource attributes from AWS Lambda.
     /// </summary>
-    /// <returns>List of key-value pairs of resource attributes.</returns>
-    public IEnumerable<KeyValuePair<string, object>> Detect()
+    /// <returns>Resource.</returns>
+    public Resource Detect()
     {
         List<KeyValuePair<string, object>> resourceAttributes = null;
 
@@ -45,7 +47,7 @@ public class AWSLambdaResourceDetector : IResourceDetector
             AWSXRayEventSource.Log.ResourceAttributesExtractException(nameof(AWSLambdaResourceDetector), ex);
         }
 
-        return resourceAttributes;
+        return resourceAttributes != null ? new Resource(resourceAttributes) : null;
     }
 
     internal List<KeyValuePair<string, object>> ExtractResourceAttributes()

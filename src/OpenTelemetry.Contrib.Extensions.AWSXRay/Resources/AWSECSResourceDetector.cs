@@ -21,6 +21,8 @@ using System.Text.RegularExpressions;
 
 using Newtonsoft.Json.Linq;
 
+using OpenTelemetry.Resources;
+
 namespace OpenTelemetry.Contrib.Extensions.AWSXRay.Resources;
 
 /// <summary>
@@ -35,12 +37,12 @@ public class AWSECSResourceDetector : IResourceDetector
     /// <summary>
     /// Detector the required and optional resource attributes from AWS ECS.
     /// </summary>
-    /// <returns>List of key-value pairs of resource attributes.</returns>
-    public IEnumerable<KeyValuePair<string, object>> Detect()
+    /// <returns>Resource.</returns>
+    public Resource Detect()
     {
         if (!this.IsECSProcess())
         {
-            return new List<KeyValuePair<string, object>>();
+            return null;
         }
 
         var resourceAttributes = new List<KeyValuePair<string, object>>()
@@ -68,7 +70,7 @@ public class AWSECSResourceDetector : IResourceDetector
             AWSXRayEventSource.Log.ResourceAttributesExtractException(nameof(AWSECSResourceDetector), ex);
         }
 
-        return resourceAttributes;
+        return new Resource(resourceAttributes);
     }
 
     internal List<KeyValuePair<string, object>> ExtractResourceAttributes(string containerId)

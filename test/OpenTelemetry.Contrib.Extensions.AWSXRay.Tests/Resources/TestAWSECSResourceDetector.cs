@@ -50,7 +50,7 @@ public class TestAWSECSResourceDetector : IDisposable
     [Fact]
     public void TestNotOnEcs()
     {
-        Assert.Empty(new AWSECSResourceDetector().Detect());
+        Assert.Empty(new AWSECSResourceDetector().Detect().Attributes);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class TestAWSECSResourceDetector : IDisposable
     {
         Environment.SetEnvironmentVariable(AWSECSMetadataURLKey, "TestECSURIKey");
 
-        var resourceAttributes = new AWSECSResourceDetector().Detect().ToDictionary(x => x.Key, x => x.Value);
+        var resourceAttributes = new AWSECSResourceDetector().Detect().Attributes.ToDictionary(x => x.Key, x => x.Value);
 
         Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudProvider], "aws");
         Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudPlatform], "aws_ecs");
@@ -79,8 +79,7 @@ public class TestAWSECSResourceDetector : IDisposable
         await using (var metadataEndpoint = new MockEcsMetadataEndpoint("ecs_metadata/metadatav4-response-container-ec2.json", "ecs_metadata/metadatav4-response-task-ec2.json"))
         {
             Environment.SetEnvironmentVariable(AWSECSMetadataURLV4Key, metadataEndpoint.Address.ToString());
-            var tmp = new AWSECSResourceDetector().Detect();
-            var resourceAttributes = tmp.ToDictionary(x => x.Key, x => x.Value);
+            var resourceAttributes = new AWSECSResourceDetector().Detect().Attributes.ToDictionary(x => x.Key, x => x.Value);
 
             Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudProvider], "aws");
             Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudPlatform], "aws_ecs");
@@ -106,7 +105,7 @@ public class TestAWSECSResourceDetector : IDisposable
         {
             Environment.SetEnvironmentVariable(AWSECSMetadataURLV4Key, metadataEndpoint.Address.ToString());
 
-            var resourceAttributes = new AWSECSResourceDetector().Detect().ToDictionary(x => x.Key, x => x.Value);
+            var resourceAttributes = new AWSECSResourceDetector().Detect().Attributes.ToDictionary(x => x.Key, x => x.Value);
 
             Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudProvider], "aws");
             Assert.Equal(resourceAttributes[AWSSemanticConventions.AttributeCloudPlatform], "aws_ecs");

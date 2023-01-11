@@ -16,7 +16,9 @@
 
 using System;
 using System.Collections.Generic;
+
 using OpenTelemetry.Contrib.Extensions.AWSXRay.Resources.Models;
+using OpenTelemetry.Resources;
 
 namespace OpenTelemetry.Contrib.Extensions.AWSXRay.Resources;
 
@@ -34,8 +36,8 @@ public class AWSEC2ResourceDetector : IResourceDetector
     /// <summary>
     /// Detector the required and optional resource attributes from AWS EC2.
     /// </summary>
-    /// <returns>List of key-value pairs of resource attributes.</returns>
-    public IEnumerable<KeyValuePair<string, object>> Detect()
+    /// <returns>Resource.</returns>
+    public Resource Detect()
     {
         List<KeyValuePair<string, object>> resourceAttributes = null;
 
@@ -52,7 +54,7 @@ public class AWSEC2ResourceDetector : IResourceDetector
             AWSXRayEventSource.Log.ResourceAttributesExtractException(nameof(AWSEC2ResourceDetector), ex);
         }
 
-        return resourceAttributes;
+        return resourceAttributes != null ? new Resource(resourceAttributes) : null;
     }
 
     internal List<KeyValuePair<string, object>> ExtractResourceAttributes(AWSEC2IdentityDocumentModel identity, string hostName)
