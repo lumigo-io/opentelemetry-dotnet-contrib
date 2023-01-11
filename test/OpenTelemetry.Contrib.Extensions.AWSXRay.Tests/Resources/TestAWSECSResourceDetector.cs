@@ -31,18 +31,25 @@ using Xunit;
 
 namespace OpenTelemetry.Contrib.Extensions.AWSXRay.Tests.Resources;
 
-public class TestAWSECSResourceDetector
+public class TestAWSECSResourceDetector : IDisposable
 {
     private const string AWSECSMetadataFilePath = "Resources/SampleMetadataFiles/testcgroup";
     private const string AWSECSMetadataURLKey = "ECS_CONTAINER_METADATA_URI";
     private const string AWSECSMetadataURLV4Key = "ECS_CONTAINER_METADATA_URI_V4";
 
+    public TestAWSECSResourceDetector()
+    {
+        this.ResetEnvironment();
+    }
+
+    public void Dispose()
+    {
+        this.ResetEnvironment();
+    }
+
     [Fact]
     public void TestNotOnEcs()
     {
-        Environment.SetEnvironmentVariable(AWSECSMetadataURLKey, null);
-        Environment.SetEnvironmentVariable(AWSECSMetadataURLV4Key, null);
-
         Assert.Empty(new AWSECSResourceDetector().Detect());
     }
 
@@ -56,7 +63,6 @@ public class TestAWSECSResourceDetector
     public void TestEcsMetadataV3()
     {
         Environment.SetEnvironmentVariable(AWSECSMetadataURLKey, "TestECSURIKey");
-        Environment.SetEnvironmentVariable(AWSECSMetadataURLV4Key, null);
 
         var resourceAttributes = new AWSECSResourceDetector().Detect().ToDictionary(x => x.Key, x => x.Value);
 
@@ -114,6 +120,12 @@ public class TestAWSECSResourceDetector
             Assert.NotStrictEqual(resourceAttributes[AWSSemanticConventions.AttributeLogStreamNames], new string[] { "ecs/curl/cd189a933e5849daa93386466019ab50" });
             Assert.NotStrictEqual(resourceAttributes[AWSSemanticConventions.AttributeLogStreamArns], new string[] { "arn:aws:logs:us-west-2:111122223333:log-group:/ecs/containerlogs:log-stream:ecs/curl/cd189a933e5849daa93386466019ab50" });
         }
+    }
+
+    internal void ResetEnvironment()
+    {
+        Environment.SetEnvironmentVariable(AWSECSMetadataURLKey, null);
+        Environment.SetEnvironmentVariable(AWSECSMetadataURLV4Key, null);
     }
 
     internal class MockEcsMetadataEndpoint : IAsyncDisposable
