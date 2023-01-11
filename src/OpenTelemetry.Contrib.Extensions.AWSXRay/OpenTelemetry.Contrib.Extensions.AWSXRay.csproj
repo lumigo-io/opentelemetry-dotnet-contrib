@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>$(NetFrameworkMinimumSupportedVersion);netstandard2.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;$(NetFrameworkMinimumSupportedVersion)</TargetFrameworks>
     <Description>OpenTelemetry extensions for AWS X-Ray.</Description>
     <MinVerTagPrefix>Extensions.AWSXRay-</MinVerTagPrefix>
   </PropertyGroup>
