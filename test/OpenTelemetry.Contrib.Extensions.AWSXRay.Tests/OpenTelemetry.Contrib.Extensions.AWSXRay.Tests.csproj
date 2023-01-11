@@ -1,9 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Description>Unit test project for AWS X-Ray for OpenTelemetry</Description>
-    <TargetFrameworks>netcoreapp3.1</TargetFrameworks>
-    <TargetFrameworks Condition="$(OS) == 'Windows_NT'">$(TargetFrameworks);net452</TargetFrameworks>
+    <TargetFrameworks>net7.0;net6.0</TargetFrameworks>
+    <TargetFrameworks Condition="$(OS) == 'Windows_NT'">$(TargetFrameworks);net462</TargetFrameworks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,11 +20,41 @@
     <ProjectReference Include="$(RepoRoot)\src\OpenTelemetry.Contrib.Extensions.AWSXRay\OpenTelemetry.Contrib.Extensions.AWSXRay.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net452'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <Reference Include="System.Net.Http" />
+    <None Update="Resources\ecs_metadata\metadatav4-response-container-ec2.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\ecs_metadata\metadatav4-response-task-ec2.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\ecs_metadata\metadatav4-response-container-fargate.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\ecs_metadata\metadatav4-response-task-fargate.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' != 'netcoreapp3.1'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net7.0'">
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <Reference Include="System.Net.Http" />
+    <None Update="Resources\ecs_metadata\metadatav4-response-container-ec2.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\ecs_metadata\metadatav4-response-task-ec2.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\ecs_metadata\metadatav4-response-container-fargate.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\ecs_metadata\metadatav4-response-task-fargate.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <Compile Remove="Resources\TestAWSECSResourceDetector.cs" />
     <Compile Remove="Resources\TestAWSEKSResourceDetector.cs" />
     <Compile Remove="Resources\TestAWSLambdaResourceDetector.cs" />
@@ -33,7 +62,6 @@
     <Compile Remove="Resources\Http\CertificateUploader.cs" />
     <Compile Remove="Resources\Http\TestHandler.cs" />
     <Compile Remove="Resources\Http\TestServerCertificateValidationProvider.cs" />
-
   </ItemGroup>
 
   <ItemGroup>
