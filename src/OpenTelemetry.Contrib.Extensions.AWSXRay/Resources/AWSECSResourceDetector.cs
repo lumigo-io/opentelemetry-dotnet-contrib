@@ -54,7 +54,7 @@ public class AWSECSResourceDetector : IResourceDetector
         try
         {
             var containerId = this.GetECSContainerId(AWSECSMetadataPath);
-            resourceAttributes.AddRange(this.ExtractResourceAttributes(containerId));
+            resourceAttributes.AddRange(ExtractResourceAttributes(containerId));
         }
         catch (Exception ex)
         {
@@ -63,7 +63,7 @@ public class AWSECSResourceDetector : IResourceDetector
 
         try
         {
-            resourceAttributes.AddRange(this.ExtractMetadataV4ResourceAttributes());
+            resourceAttributes.AddRange(ExtractMetadataV4ResourceAttributes());
         }
         catch (Exception ex)
         {
@@ -73,7 +73,18 @@ public class AWSECSResourceDetector : IResourceDetector
         return new Resource(resourceAttributes);
     }
 
-    internal List<KeyValuePair<string, object>> ExtractResourceAttributes(string containerId)
+    internal static string GetStringOrThrow(JObject obj, string fieldName)
+    {
+        var value = obj[fieldName]?.ToString();
+        if (value == null)
+        {
+            throw new ArgumentNullException($"The expected '{fieldName}' field is missing");
+        }
+
+        return value;
+    }
+
+    internal static List<KeyValuePair<string, object>> ExtractResourceAttributes(string containerId)
     {
         var resourceAttributes = new List<KeyValuePair<string, object>>()
         {
@@ -83,7 +94,7 @@ public class AWSECSResourceDetector : IResourceDetector
         return resourceAttributes;
     }
 
-    internal List<KeyValuePair<string, object>> ExtractMetadataV4ResourceAttributes()
+    internal static List<KeyValuePair<string, object>> ExtractMetadataV4ResourceAttributes()
     {
         var metadataV4Url = Environment.GetEnvironmentVariable(AWSECSMetadataURLV4Key);
         if (metadataV4Url == null)
@@ -98,8 +109,8 @@ public class AWSECSResourceDetector : IResourceDetector
         var containerResponse = JObject.Parse(metadataV4ContainerResponse);
         var taskResponse = JObject.Parse(metadataV4TaskResponse);
 
-        var containerArn = (string)containerResponse["ContainerARN"];
-        var clusterArn = (string)taskResponse["Cluster"];
+        var containerArn = GetStringOrThrow(containerResponse, "ContainerARN");
+        var clusterArn = GetStringOrThrow(taskResponse, "Cluster");
 
         if (!clusterArn.StartsWith("arn:"))
         {
@@ -107,7 +118,7 @@ public class AWSECSResourceDetector : IResourceDetector
             clusterArn = $"{baseArn}:cluster/{clusterArn}";
         }
 
-        var launchType = (string)taskResponse["LaunchType"] switch
+        var launchType = GetStringOrThrow(taskResponse, "LaunchType") switch
         {
             string type when "ec2".Equals(type.ToLower()) => AWSSemanticConventions.ValueEcsLaunchTypeEc2,
             string type when "fargate".Equals(type.ToLower()) => AWSSemanticConventions.ValueEcsLaunchTypeFargate,
@@ -129,9 +140,13 @@ public class AWSECSResourceDetector : IResourceDetector
             new KeyValuePair<string, object>(AWSSemanticConventions.AttributeEcsTaskRevision, (string)taskResponse["Revision"]),
         };
 
-        if ("awslogs".Equals(containerResponse["LogDriver"]?.ToString()))
+        if ("awslogs".Equals(GetStringOrThrow(containerResponse, "LogDriver")))
         {
             JObject logOptions = (JObject)containerResponse["LogOptions"];
+            if (logOptions == null)
+            {
+                throw new ArgumentNullException("The expected 'LogOptions' object is missing");
+            }
 
             var regex = new Regex(@"arn:aws:ecs:([^:]+):([^:]+):.*");
             var match = regex.Match(containerArn);
@@ -144,8 +159,8 @@ public class AWSECSResourceDetector : IResourceDetector
             var logsRegion = match.Groups[1];
             var logsAccount = match.Groups[2];
 
-            var logGroupName = (string)logOptions["awslogs-group"];
-            var logStreamName = (string)logOptions["awslogs-stream"];
+            var logGroupName = GetStringOrThrow(logOptions, "awslogs-group");
+            var logStreamName = GetStringOrThrow(logOptions, "awslogs-stream");
 
             resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogGroupNames, new string[] { logGroupName }));
             resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogGroupArns, new string[] { $"arn:aws:logs:{logsRegion}:{logsAccount}:log-group:{logGroupName}:*" }));
