@@ -98,8 +98,8 @@ public class AWSECSResourceDetector : IResourceDetector
         var containerResponse = JObject.Parse(metadataV4ContainerResponse);
         var taskResponse = JObject.Parse(metadataV4TaskResponse);
 
-        var containerArn = (string)containerResponse["ContainerARN"];  // TODO Throw if null
-        var clusterArn = (string)taskResponse["Cluster"];  // TODO Throw if null
+        var containerArn = (string)containerResponse["ContainerARN"];
+        var clusterArn = (string)taskResponse["Cluster"];
 
         if (!clusterArn.StartsWith("arn:"))
         {
@@ -144,8 +144,8 @@ public class AWSECSResourceDetector : IResourceDetector
             var logsRegion = match.Groups[1];
             var logsAccount = match.Groups[2];
 
-            var logGroupName = (string)logOptions["awslogs-group"];  // TODO Throw if null
-            var logStreamName = (string)logOptions["awslogs-stream"];  // TODO Throw if null
+            var logGroupName = (string)logOptions["awslogs-group"];
+            var logStreamName = (string)logOptions["awslogs-stream"];
 
             resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogGroupNames, new string[] { logGroupName }));
             resourceAttributes.Add(new KeyValuePair<string, object>(AWSSemanticConventions.AttributeLogGroupArns, new string[] { $"arn:aws:logs:{logsRegion}:{logsAccount}:log-group:{logGroupName}:*" }));
